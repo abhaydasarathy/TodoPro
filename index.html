@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TodoPro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1a1c23;
+            --bg-secondary: #242731;
+            --bg-tertiary: #2d3748;
+            --text-primary: #e2e8f0;
+            --text-secondary: #a0aec0;
+            --border-color: #4a5568;
+            --accent-color: #3b82f6;
+        }
+        html.light {
+            --bg-primary: #f7fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #edf2f7;
+            --text-primary: #2d3748;
+            --text-secondary: #718096;
+            --border-color: #e2e8f0;
+            --accent-color: #3b82f6;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            user-select: none;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-tertiary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+        /* General UI Elements */
+        .bg-primary { background-color: var(--bg-primary); }
+        .bg-secondary { background-color: var(--bg-secondary); }
+        .bg-tertiary { background-color: var(--bg-tertiary); }
+        .text-primary { color: var(--text-primary); }
+        .text-secondary { color: var(--text-secondary); }
+        .border-custom { border-color: var(--border-color); }
+        .bg-accent-color { background-color: var(--accent-color); }
+
+        /* Task Item States & Animations */
+        .task-item.completed > .task-item-content .task-text { text-decoration: line-through; color: var(--text-secondary); }
+        .task-item.completed .checkbox-custom { background-color: var(--accent-color); border-color: var(--accent-color); }
+        .task-item.completed .checkbox-custom svg { transform: scale(1); }
+        .is-draggable { cursor: move; }
+        .task-item.dragging { opacity: 0.5; background: #4a5568; }
+        .task-item { transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease; border-left: 4px solid transparent; }
+        .task-item:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1); }
+        .checkbox-custom svg { transform: scale(0); transition: transform 0.2s ease; }
+
+        @keyframes addItem { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes removeItem { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.95); } }
+        .task-item.entering { animation: addItem 0.3s ease-out forwards; }
+        .task-item.exiting { animation: removeItem 0.3s ease-in forwards; }
+
+        /* Priority Badge Styles */
+        .priority-badge { font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 600; text-transform: uppercase; }
+        .priority-high { background-color: #ef4444; color: white; }
+        .priority-medium { background-color: #f59e0b; color: white; }
+        .priority-low { background-color: #22c55e; color: white; }
+        
+        /* Date & Highlights */
+        .deadline-today { border-left-color: var(--accent-color); background-color: rgba(59, 130, 246, 0.1); }
+        .deadline-tomorrow { border-left-color: #a78bfa; }
+        .deadline-overdue .deadline-text { color: #ef4444; font-weight: 600; }
+        .deadline-overdue { border-left-color: #ef4444; }
+
+        /* UI Polish */
+        .delete-btn:hover { color: #ef4444; transform: scale(1.1); }
+        .time-filter-btn.active { transform: translateY(-2px); box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+        
+        /* Modal Styles */
+        #modal-overlay { transition: opacity 0.3s ease; }
+        #task-modal { transition: transform 0.3s ease, opacity 0.3s ease; }
+
+        /* Subtask Styles */
+        .subtask-list { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-in-out; }
+        .task-item.subtasks-expanded .subtask-list { max-height: 500px; }
+        .task-item.subtasks-expanded .expand-icon { transform: rotate(90deg); }
+        .subtask-item { padding-left: 2.5rem; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <main class="w-full max-w-3xl mx-auto">
+        <div class="bg-secondary p-6 sm:p-8 rounded-2xl shadow-2xl">
+            
+            <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-3xl font-bold text-primary">TodoPro</h1>
+                     <button id="theme-toggle" class="p-2 rounded-full hover:bg-tertiary transition-colors">
+                        <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                        <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                    </button>
+                </div>
+                <div id="time-filters" class="flex space-x-2 bg-primary p-1 rounded-lg">
+                    <button class="time-filter-btn px-4 py-1.5 text-sm font-medium text-secondary rounded-md transition-all duration-200" data-filter="today">Today</button>
+                    <button class="time-filter-btn px-4 py-1.5 text-sm font-medium text-secondary rounded-md transition-all duration-200" data-filter="tomorrow">Tomorrow</button>
+                </div>
+            </header>
+            
+            <!-- Progress Bar -->
+            <div class="mb-4">
+                 <div class="flex justify-between mb-1">
+                    <span id="progress-text" class="text-base font-medium text-primary">Progress</span>
+                    <span id="progress-percent" class="text-sm font-medium text-primary">0%</span>
+                </div>
+                <div class="w-full bg-tertiary rounded-full h-2.5">
+                    <div id="progress-bar" class="bg-green-500 h-2.5 rounded-full" style="width: 0%; transition: width 0.3s ease;"></div>
+                </div>
+            </div>
+
+            <form id="add-task-form" class="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-3 mb-6 relative">
+                <input type="text" id="task-input" placeholder="e.g., Design new dashboard" autocomplete="off" class="w-full bg-primary text-primary border-2 border-transparent focus:border-accent-color focus:ring-0 rounded-lg py-3 px-4 transition-colors" required>
+                <select id="priority-input" class="bg-primary text-primary border-2 border-transparent focus:border-accent-color focus:ring-0 rounded-lg py-3 px-2 cursor-pointer">
+                    <option value="Medium">Medium Priority</option><option value="High">High Priority</option><option value="Low">Low Priority</option>
+                </select>
+                <input type="date" id="deadline-input" class="bg-primary text-primary border-2 border-transparent focus:border-accent-color focus:ring-0 rounded-lg py-3 px-2 cursor-pointer" title="Set a deadline">
+                <button type="submit" class="bg-accent-color hover:opacity-90 text-white font-semibold py-3 px-5 rounded-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent-color focus:ring-offset-2 focus:ring-offset-secondary">Add Task</button>
+                <p id="error-message" class="text-red-500 text-sm col-span-full text-center h-4 mt-1 transition-opacity duration-300 opacity-0"></p>
+            </form>
+
+            <div>
+                <div class="flex flex-wrap items-center justify-between gap-y-2 mb-4 border-b border-custom pb-2">
+                     <h2 class="text-xl font-semibold text-primary">Your Tasks</h2>
+                    <div class="flex items-center gap-x-2">
+                         <div id="status-filters" class="flex space-x-1 bg-primary p-1 rounded-md">
+                            <button class="status-filter-btn active px-3 py-1 text-sm font-medium text-secondary rounded-md" data-filter="all">All</button>
+                            <button class="status-filter-btn px-3 py-1 text-sm font-medium text-secondary rounded-md" data-filter="active">Active</button>
+                            <button class="status-filter-btn px-3 py-1 text-sm font-medium text-secondary rounded-md" data-filter="completed">Completed</button>
+                        </div>
+                        <select id="sort-select" title="Sort tasks" class="p-2 bg-primary text-primary rounded-md hover:bg-tertiary transition-colors focus:ring-0 border-transparent focus:border-accent-color cursor-pointer">
+                            <option value="manual">Default Order</option><option value="priority">By Priority</option><option value="deadline">By Deadline</option>
+                        </select>
+                    </div>
+                </div>
+                <ul id="task-list" class="space-y-3 h-80 overflow-y-auto pr-2"></ul>
+                <div id="empty-state" class="hidden text-center py-10"><svg class="mx-auto h-12 w-12 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><h3 class="mt-2 text-lg font-medium text-primary">All clear!</h3><p class="mt-1 text-sm text-secondary">You have no tasks here.</p></div>
+            </div>
+            <div id="app-footer" class="mt-4 pt-4 border-t border-custom"><button id="clear-completed-btn" class="hidden w-full text-center text-sm text-secondary hover:text-primary transition-colors py-2 rounded-md">Clear Completed Tasks</button></div>
+        </div>
+    </main>
+
+    <!-- Task Details Modal -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 hidden z-50">
+        <div id="task-modal" class="bg-secondary rounded-lg shadow-xl w-full max-w-lg p-6 transform scale-95 opacity-0">
+            <h3 class="text-xl font-bold text-primary mb-4">Edit Task</h3>
+            <div class="space-y-4">
+                <input type="text" id="modal-task-text" class="w-full bg-primary text-primary rounded-md p-2 focus:ring-2 focus:ring-accent-color border-transparent" placeholder="Task name" required>
+                <textarea id="modal-task-notes" rows="3" class="w-full bg-primary text-primary rounded-md p-2 focus:ring-2 focus:ring-accent-color border-transparent" placeholder="Add notes or a description..."></textarea>
+                <div class="grid grid-cols-2 gap-4">
+                    <select id="modal-priority-select" class="bg-primary text-primary rounded-md p-2 focus:ring-2 focus:ring-accent-color border-transparent"></select>
+                    <input type="date" id="modal-deadline-input" class="bg-primary text-primary rounded-md p-2 focus:ring-2 focus:ring-accent-color border-transparent">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button id="modal-cancel-btn" class="px-4 py-2 text-sm bg-tertiary hover:opacity-80 rounded-md">Cancel</button>
+                <button id="modal-save-btn" class="px-4 py-2 text-sm bg-accent-color text-white hover:opacity-90 rounded-md">Save Changes</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM ELEMENTS & SAFEGUARD ---
+            const elements = {
+                html: document.documentElement,
+                taskForm: document.getElementById('add-task-form'), taskInput: document.getElementById('task-input'),
+                priorityInput: document.getElementById('priority-input'), deadlineInput: document.getElementById('deadline-input'),
+                taskList: document.getElementById('task-list'), statusFilters: document.getElementById('status-filters'),
+                timeFilters: document.getElementById('time-filters'), sortSelect: document.getElementById('sort-select'),
+                emptyState: document.getElementById('empty-state'), clearCompletedBtn: document.getElementById('clear-completed-btn'),
+                themeToggle: document.getElementById('theme-toggle'), errorMessage: document.getElementById('error-message'),
+                themeIcons: { sun: document.getElementById('theme-icon-sun'), moon: document.getElementById('theme-icon-moon') },
+                progress: { text: document.getElementById('progress-text'), percent: document.getElementById('progress-percent'), bar: document.getElementById('progress-bar') },
+                modal: { overlay: document.getElementById('modal-overlay'), window: document.getElementById('task-modal'),
+                    text: document.getElementById('modal-task-text'), notes: document.getElementById('modal-task-notes'),
+                    priority: document.getElementById('modal-priority-select'), deadline: document.getElementById('modal-deadline-input'),
+                    saveBtn: document.getElementById('modal-save-btn'), cancelBtn: document.getElementById('modal-cancel-btn') }
+            };
+
+            // Safeguard: Check for essential elements before running the app
+            for (const key in elements) {
+                if (elements[key] === null || (typeof elements[key] === 'object' && Object.values(elements[key]).some(v => v === null))) {
+                    console.error(`Critical DOM element missing: ${key}. App cannot start.`);
+                    return; // Stop execution if a critical element is not found
+                }
+            }
+            
+            // --- STATE MANAGEMENT ---
+            // Safeguard: Handle potential JSON parsing errors from localStorage
+            const loadTasks = () => {
+                try {
+                    const tasksJSON = localStorage.getItem('tasks');
+                    // Ensure what we parse is an array
+                    const parsedTasks = tasksJSON ? JSON.parse(tasksJSON) : [];
+                    return Array.isArray(parsedTasks) ? parsedTasks : [];
+                } catch (e) {
+                    console.warn("Could not parse tasks from localStorage. Resetting.", e);
+                    localStorage.removeItem('tasks'); // Clear the corrupted item
+                    return []; // Recover with a clean slate
+                }
+            };
+            
+            let state = {
+                tasks: loadTasks(), statusFilter: 'all', timeFilter: null, sortBy: 'manual',
+                editingTaskId: null, draggedItem: null, theme: localStorage.getItem('theme') || 'dark'
+            };
+
+            // --- UTILITY FUNCTIONS ---
+            const saveState = () => localStorage.setItem('tasks', JSON.stringify(state.tasks));
+            const getISODate = (d = new Date()) => d.toISOString().split('T')[0];
+            const formatDate = (iso) => {
+                if (!iso) return 'No Date';
+                const today = new Date(); const tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1);
+                const date = new Date(iso + 'T00:00:00');
+                if (getISODate(date) === getISODate(today)) return 'Today';
+                if (getISODate(date) === getISODate(tomorrow)) return 'Tomorrow';
+                return date.toLocaleString(undefined, { month: 'short', day: 'numeric' });
+            };
+            const animateAndRun = (el, anim, act) => { el.classList.add(anim); el.addEventListener('animationend', act, { once: true }); };
+            
+            let errorTimeout;
+            const showErrorMessage = (message) => {
+                clearTimeout(errorTimeout);
+                elements.errorMessage.textContent = message;
+                elements.errorMessage.classList.remove('opacity-0');
+                errorTimeout = setTimeout(() => {
+                    elements.errorMessage.classList.add('opacity-0');
+                }, 3000);
+            };
+            
+            // --- RENDER & UI UPDATES ---
+            const updateProgress = (tasksToRender) => {
+                const total = tasksToRender.length;
+                const completed = tasksToRender.filter(t => t.completed).length;
+                const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+                elements.progress.bar.style.width = `${percent}%`;
+                elements.progress.percent.textContent = `${percent}%`;
+                elements.progress.text.textContent = `${completed} / ${total} tasks completed`;
+            };
+
+            const updateFilterCounts = () => {
+                const today = getISODate();
+                const tomorrow = getISODate(new Date(Date.now() + 86400000));
+                const todayCount = state.tasks.filter(t => t.deadline === today && !t.completed).length;
+                const tomorrowCount = state.tasks.filter(t => t.deadline === tomorrow && !t.completed).length;
+                elements.timeFilters.querySelector('[data-filter="today"]').textContent = `Today (${todayCount})`;
+                elements.timeFilters.querySelector('[data-filter="tomorrow"]').textContent = `Tomorrow (${tomorrowCount})`;
+            };
+
+            const renderTasks = () => {
+                let tasksToRender = [...state.tasks];
+                if (state.timeFilter) {
+                    const today = getISODate(); const tomorrow = getISODate(new Date(Date.now() + 86400000));
+                    if (state.timeFilter === 'today') tasksToRender = tasksToRender.filter(t => t.deadline === today);
+                    if (state.timeFilter === 'tomorrow') tasksToRender = tasksToRender.filter(t => t.deadline === tomorrow);
+                }
+                if (state.sortBy !== 'manual') {
+                    const order = { 'High': 1, 'Medium': 2, 'Low': 3 };
+                    tasksToRender.sort((a, b) => state.sortBy === 'priority' ? order[a.priority] - order[b.priority] : (a.deadline && b.deadline) ? new Date(a.deadline) - new Date(b.deadline) : a.deadline ? -1 : 1);
+                }
+                let filteredTasks = tasksToRender.filter(t => state.statusFilter === 'all' || (state.statusFilter === 'active' ? !t.completed : t.completed));
+                
+                elements.taskList.innerHTML = '';
+                elements.emptyState.classList.toggle('hidden', filteredTasks.length > 0);
+                filteredTasks.forEach(task => elements.taskList.appendChild(createTaskItem(task)));
+                elements.clearCompletedBtn.classList.toggle('hidden', !state.tasks.some(t => t.completed));
+                updateFilterCounts();
+                updateProgress(filteredTasks);
+            };
+            
+            const createTaskItem = (task) => {
+                const item = document.createElement('li');
+                const today = getISODate(); const tomorrow = getISODate(new Date(Date.now() + 86400000));
+                const subtaskProgress = task.subtasks.length ? `(${task.subtasks.filter(st=>st.completed).length}/${task.subtasks.length})` : '';
+                item.className = `task-item bg-tertiary rounded-lg shadow-md ${task.completed ? 'completed' : ''} ${task.subtasks_expanded ? 'subtasks-expanded' : ''}`;
+                if (task.deadline) {
+                    if (task.deadline < today && !task.completed) item.classList.add('deadline-overdue');
+                    else if (task.deadline === today) item.classList.add('deadline-today');
+                    else if (task.deadline === tomorrow) item.classList.add('deadline-tomorrow');
+                }
+                item.dataset.id = task.id;
+                if (state.sortBy === 'manual' && state.timeFilter === null) { item.draggable = true; item.classList.add('is-draggable'); }
+                item.innerHTML = `
+                    <div class="task-item-content flex items-center justify-between p-4">
+                        <div class="flex items-center gap-4 flex-grow min-w-0">
+                            <button class="expand-icon text-secondary p-1 rounded-full hover:bg-primary transition-transform"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg></button>
+                            <div class="checkbox-container flex-shrink-0"><div class="checkbox-custom w-6 h-6 border-2 border-custom rounded-md flex items-center justify-center transition-all cursor-pointer"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div></div>
+                            <span class="task-text text-primary truncate cursor-pointer">${task.text}</span> <span class="text-xs text-secondary">${subtaskProgress}</span>
+                        </div>
+                        <div class="flex items-center gap-3 flex-shrink-0 ml-2">
+                           <span class="deadline-text text-sm text-secondary">${formatDate(task.deadline)}</span>
+                           <span class="priority-badge priority-${task.priority.toLowerCase()}">${task.priority}</span>
+                           <button class="delete-btn text-secondary"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></button>
+                        </div>
+                    </div>
+                    <div class="subtask-list pl-8 pr-4 pb-2">
+                        ${task.subtasks.map(st => createSubtaskItem(st)).join('')}
+                        <input type="text" class="add-subtask-input bg-primary text-primary w-full p-1 rounded mt-1 text-sm" placeholder="+ Add subtask">
+                    </div>`;
+                return item;
+            };
+
+            const createSubtaskItem = (subtask) => {
+                 return `<div class="subtask-item flex items-center justify-between py-1" data-id="${subtask.id}">
+                    <div class="flex items-center gap-2"><input type="checkbox" ${subtask.completed ? 'checked' : ''} class="subtask-checkbox h-4 w-4 rounded bg-primary border-custom focus:ring-accent-color"><span class="text-sm ${subtask.completed ? 'line-through text-secondary' : 'text-primary'}">${subtask.text}</span></div>
+                    <button class="delete-subtask-btn text-secondary hover:text-red-500 text-xs">&times;</button>
+                 </div>`;
+            };
+
+            // --- MODAL LOGIC ---
+            const openModal = (task) => {
+                state.editingTaskId = task.id;
+                elements.modal.text.value = task.text;
+                elements.modal.notes.value = task.notes;
+                elements.modal.priority.innerHTML = `<option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option>`;
+                elements.modal.priority.value = task.priority;
+                elements.modal.deadline.value = task.deadline || '';
+                elements.modal.overlay.classList.remove('hidden');
+                setTimeout(() => {
+                    elements.modal.overlay.classList.add('opacity-100');
+                    elements.modal.window.classList.remove('scale-95', 'opacity-0');
+                    elements.modal.window.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            };
+            const closeModal = () => {
+                elements.modal.window.classList.remove('scale-100', 'opacity-100');
+                elements.modal.window.classList.add('scale-95', 'opacity-0');
+                elements.modal.overlay.classList.remove('opacity-100');
+                setTimeout(() => elements.modal.overlay.classList.add('hidden'), 300);
+                state.editingTaskId = null;
+            };
+            elements.modal.saveBtn.onclick = () => {
+                const task = state.tasks.find(t => t.id === state.editingTaskId);
+                // Safeguard: Ensure task exists before saving
+                if (!task) {
+                    console.warn(`Attempted to save non-existent task ID: ${state.editingTaskId}`);
+                    closeModal();
+                    return;
+                }
+                const newText = elements.modal.text.value.trim();
+                if (newText) {
+                    task.text = newText; task.notes = elements.modal.notes.value;
+                    task.priority = elements.modal.priority.value; task.deadline = elements.modal.deadline.value || null;
+                    saveState(); renderTasks();
+                }
+                closeModal();
+            };
+            elements.modal.cancelBtn.onclick = closeModal;
+            elements.modal.overlay.onclick = (e) => { if(e.target === elements.modal.overlay) closeModal(); };
+
+            // --- THEME LOGIC (SAFEGUARDED BY DOM CHECK) ---
+            const applyTheme = (theme) => {
+                state.theme = theme; localStorage.setItem('theme', theme);
+                elements.html.className = theme;
+                elements.themeIcons.sun.classList.toggle('hidden', theme === 'dark');
+                elements.themeIcons.moon.classList.toggle('hidden', theme === 'light');
+            };
+            elements.themeToggle.onclick = () => applyTheme(state.theme === 'dark' ? 'light' : 'dark');
+            
+            // --- EVENT LISTENERS ---
+            elements.taskForm.onsubmit = (e) => {
+                e.preventDefault(); 
+                const text = elements.taskInput.value.trim();
+                const deadline = elements.deadlineInput.value || null;
+
+                // Safeguard: Prevent empty task submission
+                if (!text) {
+                    showErrorMessage("Task name cannot be empty.");
+                    return;
+                }
+                
+                // Safeguard: Prevent duplicate tasks (same name and deadline)
+                const isDuplicate = state.tasks.some(
+                    task => task.text.trim().toLowerCase() === text.toLowerCase() && task.deadline === deadline
+                );
+                if (isDuplicate) {
+                    showErrorMessage("This task already exists for the same date.");
+                    return;
+                }
+                
+                state.tasks.push({ id: Date.now(), text, completed: false, priority: elements.priorityInput.value, deadline, notes: '', subtasks: [], subtasks_expanded: false });
+                saveState(); renderTasks(); const newItem = elements.taskList.querySelector(`[data-id="${state.tasks[state.tasks.length - 1].id}"]`);
+                if(newItem) newItem.classList.add('entering'); 
+                elements.taskForm.reset(); 
+                // Safeguard: Reset deadline to today
+                elements.deadlineInput.value = getISODate();
+            };
+            
+            elements.taskList.onclick = (e) => {
+                const taskItem = e.target.closest('.task-item'); if (!taskItem) return;
+                const id = Number(taskItem.dataset.id); const task = state.tasks.find(t => t.id === id);
+                
+                // Safeguard: Ensure task exists before any action
+                if (!task) {
+                    console.warn(`Action on non-existent task ID: ${id}`);
+                    return;
+                }
+                
+                if (e.target.closest('.delete-btn')) {
+                    animateAndRun(taskItem, 'exiting', () => { state.tasks = state.tasks.filter(t => t.id !== id); saveState(); renderTasks(); });
+                    return;
+                }
+                if (e.target.closest('.delete-subtask-btn')) {
+                    const subtaskItem = e.target.closest('.subtask-item');
+                    const subtaskId = Number(subtaskItem.dataset.id);
+                    task.subtasks = task.subtasks.filter(st => st.id !== subtaskId);
+                    saveState();
+                    renderTasks();
+                    return;
+                }
+                if (e.target.closest('.checkbox-container')) { task.completed = !task.completed; saveState(); renderTasks(); }
+                else if (e.target.closest('.task-text')) openModal(task);
+                else if (e.target.closest('.expand-icon')) { task.subtasks_expanded = !task.subtasks_expanded; saveState(); renderTasks(); }
+            };
+            
+            elements.taskList.ondblclick = (e) => {
+                if(e.target.classList.contains('task-text')) {
+                    const taskTextSpan = e.target;
+                    const taskItem = e.target.closest('.task-item');
+                    const id = Number(taskItem.dataset.id);
+                    const task = state.tasks.find(t => t.id === id);
+                    
+                    // Safeguard: Ensure task exists
+                    if (!task) return;
+                    
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = task.text;
+                    input.className = 'bg-primary text-primary w-full';
+                    taskTextSpan.replaceWith(input);
+                    input.focus();
+
+                    const save = () => {
+                        const newText = input.value.trim();
+                        if (newText) task.text = newText;
+                        saveState();
+                        renderTasks();
+                    };
+
+                    input.addEventListener('blur', save);
+                    input.addEventListener('keydown', (e) => { if(e.key === 'Enter') input.blur(); });
+                }
+            };
+
+            elements.taskList.onchange = (e) => { // For subtask checkboxes
+                if(e.target.classList.contains('subtask-checkbox')) {
+                    const subtaskId = Number(e.target.closest('.subtask-item').dataset.id);
+                    const parentTaskId = Number(e.target.closest('.task-item').dataset.id);
+                    const parentTask = state.tasks.find(t=>t.id === parentTaskId);
+                    // Safeguard: Ensure parent task exists
+                    if (!parentTask) return;
+                    const subtask = parentTask.subtasks.find(st=>st.id === subtaskId);
+                    // Safeguard: Ensure subtask exists
+                    if (subtask) {
+                        subtask.completed = e.target.checked;
+                        saveState(); renderTasks();
+                    }
+                }
+            };
+            elements.taskList.onkeydown = (e) => { // For adding subtasks
+                if(e.key === 'Enter' && e.target.classList.contains('add-subtask-input')) {
+                    const text = e.target.value.trim();
+                    if(text) {
+                        const parentTaskId = Number(e.target.closest('.task-item').dataset.id);
+                        const parentTask = state.tasks.find(t=>t.id === parentTaskId);
+                        // Safeguard: Ensure parent task exists
+                        if (parentTask) {
+                            parentTask.subtasks.push({ id: Date.now(), text, completed: false });
+                            e.target.value = '';
+                            saveState(); renderTasks();
+                        }
+                    }
+                }
+            };
+            
+            elements.statusFilters.addEventListener('click', (e) => {
+                if (e.target.tagName !== 'BUTTON') return;
+                const currentActive = elements.statusFilters.querySelector('.active');
+                if (currentActive) currentActive.classList.remove('active', 'bg-accent-color', 'text-white');
+                e.target.classList.add('active', 'bg-accent-color', 'text-white');
+                state.statusFilter = e.target.dataset.filter;
+                renderTasks();
+            });
+
+            elements.timeFilters.addEventListener('click', (e) => {
+                if (e.target.tagName !== 'BUTTON') return;
+                const filter = e.target.dataset.filter;
+                const currentActive = elements.timeFilters.querySelector('.active');
+                if (state.timeFilter === filter) {
+                    state.timeFilter = null;
+                    e.target.classList.remove('active', 'bg-accent-color', 'text-white');
+                } else {
+                    if (currentActive) currentActive.classList.remove('active', 'bg-accent-color', 'text-white');
+                    state.timeFilter = filter;
+                    e.target.classList.add('active', 'bg-accent-color', 'text-white');
+                }
+                renderTasks();
+            });
+
+            elements.sortSelect.addEventListener('change', (e) => { state.sortBy = e.target.value; renderTasks(); });
+
+            elements.clearCompletedBtn.addEventListener('click', () => {
+                elements.taskList.querySelectorAll('.task-item.completed').forEach(item => item.classList.add('exiting'));
+                setTimeout(() => { state.tasks = state.tasks.filter(t => !t.completed); saveState(); renderTasks(); }, 300);
+            });
+
+            elements.taskList.addEventListener('dragstart', e => {
+                const target = e.target.closest('.is-draggable');
+                if (!target) return;
+                state.draggedItem = target;
+                setTimeout(() => state.draggedItem.classList.add('dragging'), 0);
+            });
+            elements.taskList.addEventListener('dragend', () => {
+                if (!state.draggedItem) return;
+                state.draggedItem.classList.remove('dragging');
+                const newOrderedIds = Array.from(elements.taskList.querySelectorAll('.task-item')).map(el => Number(el.dataset.id));
+                if (newOrderedIds.length > 0) {
+                     state.tasks.sort((a, b) => newOrderedIds.indexOf(a.id) - newOrderedIds.indexOf(b.id));
+                     saveState();
+                }
+                state.draggedItem = null;
+                renderTasks();
+            });
+            elements.taskList.addEventListener('dragover', e => {
+                e.preventDefault();
+                if (!state.draggedItem) return;
+                const afterElement = [...elements.taskList.querySelectorAll('.task-item:not(.dragging)')].reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = e.clientY - box.top - box.height / 2;
+                    return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+                if (afterElement == null) {
+                    elements.taskList.appendChild(state.draggedItem);
+                } else {
+                    elements.taskList.insertBefore(state.draggedItem, afterElement);
+                }
+            });
+            
+            // --- INITIALIZATION ---
+            const initializeApp = () => {
+                // Safeguard: Always set date input min/default on load
+                elements.deadlineInput.min = getISODate();
+                elements.deadlineInput.value = getISODate(); 
+                applyTheme(state.theme);
+                renderTasks();
+            };
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
+
+
