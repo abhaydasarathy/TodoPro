@@ -17,14 +17,6 @@ Features
 
 ⚡ Super fast, works offline, and mobile-friendly
 
-Getting Started
-Download or clone this repo:
-
-bash
-git clone https://github.com/your-username/todopro.git
-Open index.html in any web browser.
-
-Begin adding and organizing your tasks!
 
 Tech Stack
 Frontend: HTML5, Tailwind CSS (via CDN), Google Fonts (Inter)
