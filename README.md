@@ -26,3 +26,8 @@ Logic: Vanilla JavaScript
 Storage: Browser localStorage (no backend)
 
 No frameworks required
+
+
+deployed on GitHub Pages:
+https://abhaydasarathy.github.io/TodoPro/
+
